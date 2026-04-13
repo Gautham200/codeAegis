@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "description": "Scans C# code for security vulnerabilities.",
+  "execution_settings": {
+    "default": {
+      "max_tokens": 2000,
+      "temperature": 0.0,
+      "top_p": 0.0
+    }
+  }
+}

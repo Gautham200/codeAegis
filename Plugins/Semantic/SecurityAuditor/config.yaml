@@ -1,0 +1,6 @@
+name: SecurityAuditor
+description: Scans C# code for security vulnerabilities and returns a JSON report.
+input_variables:
+  - name: codeSnippet
+    description: The C# code snippet to analyze for security vulnerabilities
+
