@@ -1,13 +1,86 @@
-namespace CodeAegis;
+using Microsoft.SemanticKernel;
+using System.Text.Json;
+using CodeAegis.Models;
 
-public class BadCode
+namespace CodeAegis.Services;
+
+public class CodeReviewAgenttt
 {
-    public void GetUser(string username)
+    private readonly Kernel _kernel;
+    private readonly SemanticChunker _chunker;
+
+    public CodeReviewAgenttt(Kernel kernel)
     {
-        // VULNERABILITY: Raw SQL string concatenation (SQL Injection)
-        string query = "SELECT * FROM Users WHERE Username = '" + username + "'";
-        
-        // Imagine database execution happens here
-        Console.WriteLine(query);
+        _kernel = kernel;
+        _chunker = new SemanticChunker();
+    }
+
+    public async Task RunAuditAsync(string targetFilePath)
+    {
+        Console.WriteLine($"\n[CodeAegis] Initializing scan on {targetFilePath}...");
+
+        // 1. Read File
+        var readArgs = new KernelArguments { { "filePath", targetFilePath } };
+        var readResult = await _kernel.InvokeAsync("FileSystem", "read_file", readArgs);
+        string codeContent = readResult.GetValue<string>() ?? string.Empty;
+
+        if (codeContent.StartsWith("Error"))
+        {
+            Console.WriteLine(codeContent);
+            return;
+        }
+
+        // 2. CHUNK THE CODE
+        var codeChunks = _chunker.ChunkCodeByMethods(codeContent);
+        Console.WriteLine($"[CodeAegis] File parsed successfully. Split into {codeChunks.Count} logical chunks (methods).\n");
+
+        var semanticPluginsDir = Path.Combine(Directory.GetCurrentDirectory(), "Plugins", "Semantic");
+        var semanticPlugin = _kernel.CreatePluginFromPromptDirectory(semanticPluginsDir, "SemanticPlugins");
+
+        // 3. LOOP THROUGH CHUNKS
+        int chunkIndex = 1;
+        foreach (var chunk in codeChunks)
+        {
+            Console.WriteLine($"--- Auditing Chunk {chunkIndex}/{codeChunks.Count} ---");
+            
+            var scanArgs = new KernelArguments { { "codeSnippet", chunk } };
+            var scanResult = await _kernel.InvokeAsync(semanticPlugin["SecurityAuditor"], scanArgs);
+            
+            ProcessAndPrintResult(scanResult.GetValue<string>() ?? string.Empty);
+            chunkIndex++;
+        }
+    }
+
+    // Helper method to keep our loop clean
+    private void ProcessAndPrintResult(string rawResponse)
+    {
+        string cleanJson = rawResponse;
+        if (cleanJson.StartsWith("```json"))
+        {
+            cleanJson = cleanJson.Replace("```json", "").Replace("```", "").Trim();
+        }
+
+        try
+        {
+            var parsedReport = JsonSerializer.Deserialize<AuditResult>(cleanJson);
+            
+            if (parsedReport?.Vulnerabilities != null && parsedReport.Vulnerabilities.Count > 0)
+            {
+                Console.WriteLine($"[Found {parsedReport.Vulnerabilities.Count} Issue(s)]");
+                foreach (var issue in parsedReport.Vulnerabilities)
+                {
+                    Console.WriteLine($"⚠️ {issue.Type}: {issue.Description}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("✅ No vulnerabilities found in this chunk.");
+            }
+        }
+        catch (Exception)
+        {
+            Console.WriteLine("[Error] The AI generated invalid JSON for this chunk.");
+        }
+        Console.WriteLine();
     }
 }
