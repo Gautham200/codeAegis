@@ -6,9 +6,10 @@ namespace CodeAegis.Services;
 
 public class SemanticChunker
 {
-    public List<string> ChunkCodeByMethods(string rawCode)
+    public record CodeChunk(string MethodName, string Code);
+    public List<CodeChunk> ChunkCodeByMethods(string rawCode)
     {
-        var chunks = new List<string>();
+        var chunks = new List<CodeChunk>();
         
         // 1. Parse the raw string into an Abstract Syntax Tree (AST)
         SyntaxTree tree = CSharpSyntaxTree.ParseText(rawCode);
@@ -20,8 +21,10 @@ public class SemanticChunker
         // 3. Extract the clean text for each method
         foreach (var method in methods)
         {
+            string methodName = method.Identifier.Text;
+            string methodCode = method.ToFullString().Trim();
             // We include the method signature and its full body
-            chunks.Add(method.ToFullString().Trim());
+            chunks.Add(new CodeChunk(methodName, methodCode));
         }
 
         return chunks;

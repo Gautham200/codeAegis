@@ -6,13 +6,17 @@ Adhere strictly to this JSON schema:
   "fileName": "Name of the file",
   "vulnerabilities": [
     {
-      "type": "Vulnerability name (e.g., SQL Injection)",
+      "type": "Vulnerability name",
       "description": "Why it is dangerous",
       "suggestedFix": "Corrected secure C# code"
     }
   ],
   "overallSecurityScore": <integer between 0 and 100>
 }
+CRITICAL RULE:
+If the code is perfectly secure and has no vulnerabilities, you MUST STILL return the strict JSON format. 
+In that case, set the "vulnerabilities" array to be empty [] and set the "overallSecurityScore" to 100.
+Do NOT reply with plain text under any circumstances.
 
 CODE TO REVIEW:
 {{$codeSnippet}}
