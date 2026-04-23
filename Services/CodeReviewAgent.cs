@@ -32,22 +32,22 @@ public class CodeReviewAgent
 
         // 2. CHUNK THE CODE
         var codeChunks = _chunker.ChunkCodeByMethods(codeContent);
-        Console.WriteLine($"[CodeAegis] File parsed successfully. Split into {codeChunks.Count} logical chunks (methods).\n");
+        Console.WriteLine($"[CodeAegis] File parsed successfully. Split into {codeChunks.Count} logical methods.\n");
 
         var semanticPluginsDir = Path.Combine(Directory.GetCurrentDirectory(), "Plugins", "Semantic");
         var semanticPlugin = _kernel.CreatePluginFromPromptDirectory(semanticPluginsDir, "SemanticPlugins");
 
-        // 3. LOOP THROUGH CHUNKS
-        int chunkIndex = 1;
+        // 3. LOOP THROUGH CHUNKS (Updated!)
         foreach (var chunk in codeChunks)
         {
-            Console.WriteLine($"--- Auditing Chunk {chunkIndex}/{codeChunks.Count} ---");
+            // Now we print the actual method name!
+            Console.WriteLine($"--- Auditing Method: {chunk.MethodName} ---");
             
-            var scanArgs = new KernelArguments { { "codeSnippet", chunk } };
+            // Make sure to pass chunk.Code to the AI, not the whole object
+            var scanArgs = new KernelArguments { { "codeSnippet", chunk.Code } };
             var scanResult = await _kernel.InvokeAsync(semanticPlugin["SecurityAuditor"], scanArgs);
             
             ProcessAndPrintResult(scanResult.GetValue<string>() ?? string.Empty);
-            chunkIndex++;
         }
     }
 
