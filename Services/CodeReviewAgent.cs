@@ -15,40 +15,61 @@ public class CodeReviewAgent
         _chunker = new SemanticChunker();
     }
 
-    public async Task RunAuditAsync(string targetFilePath)
+    public async Task RunDirectoryAuditAsync(string targetDirectoryPath)
     {
-        Console.WriteLine($"\n[CodeAegis] Initializing scan on {targetFilePath}...");
+        Console.WriteLine($"\n[CodeAegis] Initializing Repository Scan on: {targetDirectoryPath}\n");
 
-        // 1. Read File
-        var readArgs = new KernelArguments { { "filePath", targetFilePath } };
-        var readResult = await _kernel.InvokeAsync("FileSystem", "read_file", readArgs);
-        string codeContent = readResult.GetValue<string>() ?? string.Empty;
+        // 1. Get all C# files using our new Crawler tool
+        var dirArgs = new KernelArguments { { "directoryPath", targetDirectoryPath } };
+        var filesResult = await _kernel.InvokeAsync("FileSystem", "get_csharp_files", dirArgs);
+        
+        string[] files = filesResult.GetValue<string[]>() ?? Array.Empty<string>();
 
-        if (codeContent.StartsWith("Error"))
+        if (files.Length == 0)
         {
-            Console.WriteLine(codeContent);
+            Console.WriteLine("[CodeAegis] No C# files found to audit. Exiting.");
             return;
         }
 
-        // 2. CHUNK THE CODE
-        var codeChunks = _chunker.ChunkCodeByMethods(codeContent);
-        Console.WriteLine($"[CodeAegis] File parsed successfully. Split into {codeChunks.Count} logical methods.\n");
-
+        // Pre-load the AI Brain so we don't do it inside the loop
         var semanticPluginsDir = Path.Combine(Directory.GetCurrentDirectory(), "Plugins", "Semantic");
         var semanticPlugin = _kernel.CreatePluginFromPromptDirectory(semanticPluginsDir, "SemanticPlugins");
 
-        // 3. LOOP THROUGH CHUNKS (Updated!)
-        foreach (var chunk in codeChunks)
+        // 2. Loop through every file found in the directory
+        foreach (var file in files)
         {
-            // Now we print the actual method name!
-            Console.WriteLine($"--- Auditing Method: {chunk.MethodName} ---");
-            
-            // Make sure to pass chunk.Code to the AI, not the whole object
-            var scanArgs = new KernelArguments { { "codeSnippet", chunk.Code } };
-            var scanResult = await _kernel.InvokeAsync(semanticPlugin["SecurityAuditor"], scanArgs);
-            
-            ProcessAndPrintResult(scanResult.GetValue<string>() ?? string.Empty);
+            Console.WriteLine($"\n==================================================");
+            Console.WriteLine($"🔍 AUDITING FILE: {Path.GetFileName(file)}");
+            Console.WriteLine($"==================================================\n");
+
+            // A. Read the current file
+            var readArgs = new KernelArguments { { "filePath", file } };
+            var readResult = await _kernel.InvokeAsync("FileSystem", "read_file", readArgs);
+            string codeContent = readResult.GetValue<string>() ?? string.Empty;
+
+            if (codeContent.StartsWith("Error") || string.IsNullOrWhiteSpace(codeContent))
+            {
+                Console.WriteLine($"[Warning] Skipping file due to read error.");
+                continue;
+            }
+
+            // B. Chunk the file
+            var codeChunks = _chunker.ChunkCodeByMethods(codeContent);
+            Console.WriteLine($"[CodeAegis] Parsed into {codeChunks.Count} logical methods.\n");
+
+            // C. Audit each chunk
+            foreach (var chunk in codeChunks)
+            {
+                Console.WriteLine($"--- Auditing Method: {chunk.MethodName} ---");
+                
+                var scanArgs = new KernelArguments { { "codeSnippet", chunk.Code } };
+                var scanResult = await _kernel.InvokeAsync(semanticPlugin["SecurityAuditor"], scanArgs);
+                
+                ProcessAndPrintResult(scanResult.GetValue<string>() ?? string.Empty);
+            }
         }
+        
+        Console.WriteLine("\n[CodeAegis] Repository Audit Complete.");
     }
 
     // Helper method to keep our loop clean
