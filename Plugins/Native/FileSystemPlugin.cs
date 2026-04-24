@@ -43,4 +43,32 @@ public class FileSystemPlugin
             return $"Error reading file: {ex.Message}";
         }
     }
+    
+    [KernelFunction("get_csharp_files")]
+    [Description("Scans a directory and returns a list of all C# file paths.")]
+    public string[] GetCSharpFiles(
+        [Description("The absolute path to the repository or directory to scan")] string directoryPath)
+    {
+        try
+        {
+            Console.WriteLine($"\n[FileSystem Tool] -> Scanning directory: {directoryPath}...");
+
+            if (!Directory.Exists(directoryPath))
+            {
+                Console.WriteLine($"Error: Directory not found at '{directoryPath}'.");
+                return Array.Empty<string>();
+            }
+
+            // Grab every .cs file, searching through all subfolders
+            var files = Directory.GetFiles(directoryPath, "*.cs", SearchOption.AllDirectories);
+            
+            Console.WriteLine($"[FileSystem Tool] -> Found {files.Length} C# files.");
+            return files;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error scanning directory: {ex.Message}");
+            return Array.Empty<string>();
+        }
+    }
 }
